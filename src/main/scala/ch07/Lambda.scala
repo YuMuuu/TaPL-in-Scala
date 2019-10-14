@@ -41,8 +41,48 @@ object Eval {
 }
 
 object Util {
+  def termShift(d: Int, t: Term): Term = {
+    def walk(c: Int, t: Term): Term = {
+      t match {
+        case TmVar(fi, x, n) =>
+          if (x >= c) TmVar(fi, x + d, n + d) else TmVar(fi, x, n + d)
+        case TmAbs(fi, x, t1)  => TmAbs(fi, x, walk(c + 1, t1))
+        case TmApp(fi, t1, t2) => TmApp(fi, walk(c, t1), walk(c, t2))
+      }
+    }
+
+    walk(0, t)
+  }
+
+  def termSubst(j: Int, s: Term, t: Term): Term = {
+    def walk(c: Int, t: Term): Term = {
+      t match {
+        case TmVar(fi, x, n) =>
+          if (x == j + c) termShift(c, s) else TmVar(fi, x, n)
+        case TmAbs(fi, x, t1)  => TmAbs(fi, x, walk(c + 1, t))
+        case TmApp(fi, t1, t2) => TmApp(fi, walk(c, t1), walk(c, t2))
+      }
+    }
+    walk(0, t)
+  }
+
+  def termSubstTop(s: Term, t: Term): Term =
+    termShift(-1, termSubst(0, termShift(1, s), t))
+
   def isVal(ctx: Context, t: Term): Boolean = t match {
     case TmAbs(_, _, _) => true
     case _              => false
+  }
+
+  def eval1(info: Info, ctx: Context, t: Term): Term = {
+    t match {
+      case TmApp(fi, TmAbs(fi2, x, t12), v2) if isVal(ctx, v2) =>
+        termSubstTop(v2, t12)
+      case TmApp(fi, v1, t2) if isVal(ctx, v1) =>
+        TmApp(fi, v1, eval1(fi, ctx, t2))
+      case TmApp(fi, t1, t2) =>
+        TmApp(fi, eval1(fi, ctx, t1), t2)
+      case t => ???
+    }
   }
 }
